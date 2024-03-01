@@ -1,4 +1,4 @@
-from flask import Flask, jsonify
+from flask import Flask, request, jsonify
 import pyodbc
 import os
 from dotenv import load_dotenv
@@ -38,13 +38,38 @@ def execute_sql(query):
         raise e
     
 # Example endpoint to retrieve data from an external table
-@app.route('/api/data', methods=['GET'])
+@app.route('/api/data', methods=['POST'])
 def get_data():
-    query = 'SELECT TOP 10 * FROM deed_sales '
+    # Retrieve parameters from the request body
+    request_data = request.json
+
+    # Extract conditions from the request data
+    conditions = request_data.get('conditions', [])
+
+    # Start building the base query
+    query = 'SELECT TOP 10 * FROM flattened_transactions WHERE '
+
+    condition_strings = []
+    for condition in conditions:
+        column_name = condition.get('column')
+        if column_name == 'year':
+            column_name = "YEAR(OriginalDateOfContract)"
+        operator = condition.get('operator')
+        value = condition.get('value')
+        if column_name and operator and value:
+            condition_strings.append(f"{column_name} {operator} '{value}'")
+
+    query += ' AND '.join(condition_strings)
+    
+    print(query)
+    # Execute the SQL query
     data = execute_sql(query)
+
+    # Convert the data to a list of lists
     records_list = [list(record) for record in data]
-    # json_records = json.dumps(records_list)
-    return jsonify(data=records_list)
+
+    # Return the result as JSON
+    return jsonify(records_list)
 
 @app.route('/api/v1/', methods=['GET'])
 def display_message():
